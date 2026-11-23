@@ -1,0 +1,57 @@
+nyx-gestures 2.0.0
+
+Touchpad gestures for GNOME, two interchangeable backends, one installer.
+See README.md.
+
+    daemon  libinput-gestures + a libei key injector. 2 processes, ~32 MB.
+            Works on any GNOME version and any touchpad, including X11.
+    ext     GNOME Shell extension. 0 extra processes, no key injection.
+            Requires the compositor to expose get_gesture_motion_delta.
+
+Neither backend patches a system binary. There are no apt hooks.
+
+Platform selection
+------------------
+The installer probes the installed typelibs for get_gesture_motion_delta and
+refuses the extension backend when it is absent, instead of shipping an
+extension whose every swipe would silently fail. Measured:
+
+    Ubuntu 26.04 / GNOME 50.1 / mutter 18   present  -> extension offered
+    Ubuntu 22.04 / GNOME 42.9 / mutter 10   absent   -> extension refused
+
+Note that the function is *declared* in mutter 10's C header but missing from
+Clutter-10.typelib, so it is not reachable from GJS. The capability probe reads
+the typelib, which is the same thing JS would see, rather than the C header.
+
+Requirements
+------------
+daemon   python3, python-evdev, python-libei (installed into a private venv),
+         xdotool as the X11 fallback. Root, for /usr/local.
+ext      GNOME 45+. No root: the GSettings schema installs per-user.
+both     a touchpad with at least 4 slots for the 4-finger gestures.
+
+Logging
+-------
+Both halves write ~/.local/state/nyx-gestures/nyx.log at levels, rotated at
+256 KiB. Change the level on a running session with:
+
+    gsettings set org.gnome.shell.extensions.nyx-gestures level debug
+
+Each gesture logs one line naming the action and whether it completed or was
+declined, which distinguishes "the compositor never sent this gesture" from
+"the action could not run".
+
+Diagnosis
+---------
+    ./install.sh --doctor     read-only; safe on someone else's machine
+    ./lib/nyx-preflight.sh    platform capability report
+    ./lib/nyx-preflight.sh --json
+
+Tests (working tree only, not shipped)
+--------------------------------------
+    node dev/decisiontest.js CONFIG    28 checks, plain node, no GNOME needed
+    ./testrig.sh                       API + state machine + logger, headless
+    ./build-extension.sh               lints, gates on the decision test
+    ./dev/gesture-directions.sh        raw direction/finger/scale via a grabbed
+                                       virtual touchpad, never reaching the
+                                       live session

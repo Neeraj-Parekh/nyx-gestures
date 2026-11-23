@@ -1,0 +1,135 @@
+#!/bin/bash
+# nyx-gestures-setup - (re)apply the GNOME keybindings the gestures rely on.
+#
+# Every gesture chord resolves to a GNOME keybinding, because injected raw
+# keycodes do not trigger GNOME's own actions. Targets are MODIFIER+F-key
+# rather than bare F-key, because mutter ignores injected bare function keys.
+#
+# IMPORTANT: every chord below must be claimed by exactly ONE GNOME action.
+# A chord shared by two actions is ambiguous and GNOME will run the wrong one
+# (this happened: alt+F7 was both begin-move and show-screenshot-ui, so the
+# screenshot picker gesture moved/resized a window instead). The audit at the
+# end of this script fails loudly if any chord is contested.
+#
+# Run as your normal user.
+set -u
+
+SCHEMA=org.gnome.shell.keybindings
+WM=org.gnome.desktop.wm.keybindings
+TA=org.gnome.shell.extensions.tiling-assistant
+
+set_binding() { gsettings set "$1" "$2" "$3" 2>/dev/null; }
+show() { printf "  %-24s %s\n" "$1" "$(gsettings get "$2" "$1" 2>/dev/null)"; }
+
+echo "==> GNOME screenshot bindings (nyshot)"
+# alt+F6 is GNOME's cycle-group and alt+F7 is begin-move, so window capture
+# and the picker live on F14/F13 instead.
+set_binding $SCHEMA screenshot "['<Alt>F5']"          # whole screen, silent
+# F-keys above F12 are not delivered by libei injection on this build
+# (F8/F9/F12 work; F13+ do not), so every chord stays within F1-F12.
+set_binding $SCHEMA screenshot-window "['<Alt><Shift>F12']"   # focused window
+set_binding $SCHEMA show-screenshot-ui "['<Alt><Shift>F11']"  # Screen/Window/Selection
+
+echo "==> GNOME window management bindings"
+set_binding $WM close "['<Alt>F4']"
+set_binding $WM begin-resize "['<Alt>F8']"
+set_binding $WM toggle-fullscreen "['<Alt>F9']"
+# alt+F10 is GNOME's toggle-maximized, so move-to-workspace-left uses F15.
+set_binding $WM move-to-workspace-left "['<Alt><Shift>F7']"
+set_binding $WM move-to-workspace-right "['<Alt>F11']"
+set_binding $WM show-desktop "['<Alt>F12']"
+
+echo "==> window snapping (GNOME 50 leaves these UNBOUND)"
+set_binding $WM move-to-side-n "['<Super><Shift>Up']"     # top half
+set_binding $WM move-to-side-s "['<Super><Shift>Down']"   # bottom half
+set_binding $WM move-to-side-w "['<Super><Shift>Left']"   # left half
+set_binding $WM move-to-side-e "['<Super><Shift>Right']"  # right half
+# Drop monitor-move duplicates so each chord has one owner.
+for k in move-to-monitor-up move-to-monitor-down move-to-monitor-left move-to-monitor-right; do
+    set_binding $WM "$k" "[]"
+done
+
+echo "==> tiling (tiling-assistant owns these; it forces mutter toggle-tiled-* empty)"
+# alt+F16/F17: NOT super+Left (bound twice - tile-left-half AND the extension's
+# own mutter override, so one gesture tiled AND switched workspace) and NOT
+# super+KP_4 (needs numlock; with numlock off evdev reports KP_4 as Home, the
+# binding cannot match, and the dangling Super release opened the overview).
+set_binding $TA tile-left-half "['<Alt><Shift>F9']"
+set_binding $TA tile-right-half "['<Alt><Shift>F10']"
+
+echo "==> enabling tiling-assistant if installed"
+if gnome-extensions info tiling-assistant@ubuntu.com >/dev/null 2>&1; then
+    gnome-extensions enable tiling-assistant@ubuntu.com 2>/dev/null || true
+    echo "    enabled"
+else
+    echo "    NOT installed - 3-finger tiling will not work"
+fi
+
+echo
+echo "Current bindings:"
+show screenshot           $SCHEMA
+show screenshot-window    $SCHEMA
+show show-screenshot-ui   $SCHEMA
+show close                $WM
+show begin-resize         $WM
+show toggle-fullscreen    $WM
+show move-to-workspace-left  $WM
+show show-desktop         $WM
+show tile-left-half       $TA
+show tile-right-half      $TA
+show move-to-side-n       $WM
+show move-to-side-s       $WM
+show move-to-side-w       $WM
+show move-to-side-e       $WM
+
+echo
+echo "==> chord collision audit"
+python3 - <<'PY'
+import subprocess, re
+schemas = ["org.gnome.desktop.wm.keybindings", "org.gnome.shell.keybindings",
+           "org.gnome.settings-daemon.plugins.media-keys",
+           "org.gnome.mutter.keybindings",
+           "org.gnome.shell.extensions.tiling-assistant"]
+def norm(c):
+    c = c.strip()
+    for a, b in [("<Super>", "super+"), ("<Alt>", "alt+"),
+                 ("<Control>", "ctrl+"), ("<Shift>", "shift+"),
+                 ("<Primary>", "ctrl+")]:
+        c = c.replace(a, b)
+    return c.lower().rstrip("+")
+table = {}
+rx = re.compile(r"'([^']+)'")
+for s in schemas:
+    # org.cinnamon.* ships with libcinnamon-desktop and is INERT here:
+    # gnome-shell and xdg-desktop-portal-gnome have zero references to
+    # that namespace. Without this, super+shift+arrows look ambiguous.
+    if s.startswith("org.cinnamon."):
+        continue
+    r = subprocess.run(["gsettings", "list-recursively", s],
+                       capture_output=True, text=True)
+    for line in r.stdout.splitlines():
+        parts = line.split(" ", 2)
+        if len(parts) < 3:
+            continue
+        for chord in rx.findall(parts[2]):
+            table.setdefault(norm(chord), []).append(
+                s.split(".")[-2] + ":" + parts[1])
+# chords the gestures actually inject
+targets = ["alt+f4", "alt+f5", "alt+f8", "alt+f9", "alt+f10", "alt+f11",
+           "alt+f12", "alt+f13", "alt+f14", "alt+f15", "alt+f19",
+           "alt+shift+f9", "alt+shift+f10", "alt+shift+f11", "super+tab",
+           "super+alt+left", "super+alt+right",
+             "<super><shift>up", "<super><shift>down",
+             "<super><shift>left", "<super><shift>right"]
+bad = 0
+for c in targets:
+    hits = table.get(c, [])
+    if len(hits) > 1:
+        bad += 1
+        print("  COLLISION %-15s -> %s" % (c, "; ".join(hits)))
+if bad:
+    print("\n  %d chord(s) contested. A gesture using one of these will run" % bad)
+    print("  the wrong action. Pick a free chord and re-run this script.")
+else:
+    print("  all %d gesture chords map to exactly one action" % len(targets))
+PY

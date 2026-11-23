@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+dist/
+og-backup-*/
+working-backup-*/
+.pytest_cache/
+node_modules/

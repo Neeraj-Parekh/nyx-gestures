@@ -1,0 +1,8 @@
+{
+  "uuid": "nyx-gestures@nyx.local",
+  "name": "Nyx Gestures",
+  "description": "Touchpad gestures handled inside GNOME Shell, with no helper daemons and no synthetic key events.\n\nGestures:\n* 3-finger swipe left/right  - tile the window to that half\n* 3-finger swipe up          - overview (app switcher)\n* 3-finger swipe down        - interactive resize (arrow keys, Escape to cancel)\n* 4-finger swipe left/right  - switch workspace\n* 4-finger swipe up          - toggle fullscreen\n* 4-finger swipe down        - show desktop\n* 3-finger pinch out         - screenshot: saved to ~/Pictures/Screenshots and copied to the clipboard\n* 3-finger pinch in          - close the focused window\n* 4-finger pinch out         - GNOME's Screen/Window/Selection picker\n* 4-finger pinch in          - show desktop, apps keep running\n\nThe screenshot gesture writes an image to the clipboard on purpose, so that Ctrl+V works straight after the gesture. It reads nothing else.\n\nNot implemented: two-finger zoom. Mutter has no zoom API, so there is nothing correct to bind it to.\n\nRequires GNOME 45 or newer. The installer checks that the compositor exposes the gesture API this extension needs before enabling it.",
+  "shell-version": ["50"],
+  "version-name": "2.0.0",
+  "url": "https://example.invalid/nyx-gestures"
+}

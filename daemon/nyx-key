@@ -1,0 +1,13 @@
+#!/bin/sh
+# Launcher for nyx-key. Resolves an interpreter that actually has our
+# dependencies, then execs the real script.
+#
+# The interpreter is deliberately NOT in this file's shebang. install.sh used to
+# rewrite it to #!/usr/local/lib/nyx-gestures/venv/bin/python, which was only
+# valid on the machine that ran install.sh and failed with a bare ImportError
+# from inside a gesture handler when it was not. See daemon/nyx-interp.
+set -eu
+
+NYX_HOME=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)
+INTERP=$("$NYX_HOME/nyx-interp") || exit 1
+exec "$INTERP" "$NYX_HOME/nyx-key.py" "$@"

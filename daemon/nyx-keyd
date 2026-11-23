@@ -1,0 +1,15 @@
+#!/bin/sh
+# Launcher for nyx-keyd. Resolves an interpreter that actually has our
+# dependencies, then execs the real script.
+#
+# As with nyx-key, the interpreter is resolved at runtime rather than baked into
+# a shebang. See daemon/nyx-interp for why that matters.
+#
+# NYX_INTERP_RECHECK=1 forces a full import validation at startup, so a venv
+# that exists but cannot import libei is reported in the journal rather than
+# showing up later as gestures that silently do nothing.
+set -eu
+
+NYX_HOME=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)
+INTERP=$(NYX_INTERP_RECHECK=1 "$NYX_HOME/nyx-interp" --check) || exit 1
+exec "$INTERP" "$NYX_HOME/nyx-keyd.py" "$@"

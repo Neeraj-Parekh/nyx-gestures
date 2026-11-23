@@ -1,0 +1,15 @@
+[Unit]
+Description=Touchpad gestures (libinput-gestures) - Wayland-compatible
+Documentation=https://github.com/bulletmark/libinput-gestures
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/sleep 2
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/local/bin/libinput-gestures -v
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,100 @@
+#!/bin/sh
+# Print the path of a Python interpreter that can import everything nyx-key and
+# nyx-keyd need. Exits non-zero with an actionable message if none can.
+#
+# WHY THIS EXISTS
+# install.sh used to bake the venv's absolute path into every shebang:
+#     #!/usr/local/lib/nyx-gestures/venv/bin/python
+# That line is only correct on the machine where install.sh happened to run. It
+# breaks if the package is installed under a different libdir, if the venv is
+# rebuilt or removed, or if the whole tree is copied to another machine - and
+# the resulting failure is a bare ImportError raised from deep inside a gesture
+# handler, with no hint that the interpreter is the problem. Nothing ever
+# re-checked it either.
+#
+# A related failure actually happened: a stale copy of nyx-key in ~/.local/bin
+# shadowed this one on PATH and still pointed at an unrelated python3.12 venv,
+# so every screenshot gesture died with
+#     ImportError: cannot import name '_input' from evdev
+# while the ten gestures that used an absolute path kept working. Resolving the
+# interpreter here, from a single place, makes that class of bug impossible: the
+# path returned below has always passed a real import check.
+#
+# COST
+# The successful interpreter is cached in $NYX_HOME/interpreter, so the
+# steady-state cost is one liveness test (~10ms) rather than a full import
+# (~71ms). Set NYX_INTERP_RECHECK=1 to force full re-validation - the daemon
+# does this at startup, which is why a broken venv is reported in
+# `journalctl --user -u nyx-keyd` instead of surfacing as a dead gesture.
+#
+# Usage:  nyx-interp          print a usable interpreter
+#         nyx-interp --check  force a full search + import validation
+
+set -eu
+
+NYX_HOME=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)
+# The cache lives in the user's cache dir, NOT in NYX_HOME: NYX_HOME is
+# root-owned while these launchers run as the invoking user, so writing there
+# fails with "Permission denied" on every call. This is the same directory that
+# already holds the daemon's key.sock and libei.token.
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/nyx-gestures"
+CACHE="$CACHE_DIR/interpreter"
+PROBE='import libei.ei, libei.portal, evdev'
+
+die() {
+    echo "nyx-interp: $*" >&2
+    exit 1
+}
+
+# usable INTERPRETER - true only if it exists and really imports the deps.
+usable() {
+    [ -n "${1:-}" ] && [ -x "$1" ] && "$1" -c "$PROBE" >/dev/null 2>&1
+}
+
+FORCE=0
+[ "${1:-}" = "--check" ] && FORCE=1
+[ "${NYX_INTERP_RECHECK:-}" = "1" ] && FORCE=1
+
+# Full validation of the cached interpreter, if asked for.
+if [ "$FORCE" = 0 ] && [ -f "$CACHE" ]; then
+    cached=$(cat "$CACHE" 2>/dev/null || true)
+    if [ -x "$cached" ]; then
+        echo "$cached"
+        exit 0
+    fi
+fi
+
+if [ "$FORCE" = 1 ] && [ -f "$CACHE" ]; then
+    cached=$(cat "$CACHE" 2>/dev/null || true)
+    if usable "$cached"; then
+        echo "$cached"
+        exit 0
+    fi
+fi
+
+# Search. The package venv is preferred because it is where python-libei gets
+# installed (PEP 668 forbids a plain pip install into the system interpreter on
+# Debian/Ubuntu), but any interpreter that already has the deps works - so on a
+# system with python-libei installed natively, no venv is needed at all.
+for cand in \
+    "$NYX_HOME/venv/bin/python" \
+    /usr/bin/python3 \
+    /usr/local/bin/python3 \
+    python3 \
+    python3.14 python3.13 python3.12 python3.11 python3.10
+do
+    resolved=$(command -v "$cand" 2>/dev/null || true)
+    [ -n "$resolved" ] || continue
+    if usable "$resolved"; then
+        mkdir -p "$CACHE_DIR" 2>/dev/null || true
+        printf '%s\n' "$resolved" > "$CACHE" 2>/dev/null || true
+        echo "$resolved"
+        exit 0
+    fi
+done
+
+echo "nyx-interp: no Python on this system can import libei.ei, libei.portal and evdev." >&2
+echo "  Looked at: $NYX_HOME/venv/bin/python, /usr/bin/python3, /usr/local/bin/python3, python3.x" >&2
+echo "  Most likely cause: the package venv is missing or python-libei was never installed." >&2
+echo "  Fix: sudo ./install.sh --backend=daemon" >&2
+exit 1

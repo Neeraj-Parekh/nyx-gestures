@@ -1,0 +1,66 @@
+#!/bin/bash
+# nyshot - screenshot capture using GNOME's BUILT-IN tool (Print-key path).
+#
+# Why not flameshot: GNOME Shell flashes the screen on every screenshot. That
+# flash is drawn by the shell itself (Screenshot._flashAsync) and the flash
+# flag comes from xdg-desktop-portal-gnome, so it is NOT controllable from any
+# gsettings key and cannot be disabled by patching the capture app.
+#
+# GNOME's own capture path (org.gnome.shell.keybindings screenshot) is used
+# instead: it stores the PNG to BOTH the clipboard and a file, automatically,
+# with no save dialog -- so Ctrl+V works straight after the gesture.
+#
+# Injected chords map to these GNOME keybindings (see nyx-gestures-setup):
+#   alt+F5          screenshot         -> whole screen, silent + clipboard
+#   alt+shift+F12   screenshot-window  -> focused window
+#   alt+shift+F11   show-screenshot-ui -> Screen/Window/Selection chooser
+#
+# F-keys above F12 are NOT delivered by libei injection on this build, so all
+# chords stay within F1-F12.
+#
+# NOTE: these chords must not collide with GNOME defaults. alt+F7 is
+# begin-move (move a window with arrow keys) and alt+F6 is cycle-group, so the
+# picker and window capture are on F13/F14 instead.
+#
+# Backends, chosen per call so one script serves every gesture:
+#   nyshot full     -> silent full-screen capture
+# (flameshot was removed: GNOME's built-in capture is the only tool in use)
+#   nyshot window   -> focused window only
+#   nyshot gui      -> interactive Screen/Window/Selection UI
+#
+# Usage: nyshot [full|window|gui]
+# Env:   NYX_INJECT_BACKEND=xdotool|libei to force an injection backend
+set -u
+
+MODE="${1:-full}"
+case "$MODE" in
+    full)    CHORD="${NYX_CHORD_FULL:-alt+F5}" ;;
+    window)  CHORD="${NYX_CHORD_WINDOW:-alt+shift+F12}" ;;
+    gui)     CHORD="${NYX_CHORD_GUI:-alt+shift+F11}" ;;
+    *)       echo "usage: nyshot [full|window|gui]" >&2; exit 2 ;;
+esac
+
+# Resolve nyx-key relative to THIS script. Never via PATH.
+#
+# BUG THIS FIXES: `command -v nyx-key` found a stale ~/.local/bin/nyx-key that
+# shadowed the package copy on PATH. That stale copy's shebang still pointed at
+# an old python3.12 venv whose evdev could not import its C extension, so every
+# screenshot gesture died with an ImportError before it ever tried to inject.
+# Both screenshot gestures call nyshot, which is why they were the only two
+# broken while the ten gestures invoking /usr/local/bin/nyx-key by absolute path
+# kept working.
+_self="$(readlink -f "${BASH_SOURCE[0]}")"
+_here="$(dirname "$_self")"
+KEY=""
+for cand in "$_here/nyx-key" /usr/local/bin/nyx-key; do
+    if [ -x "$cand" ]; then KEY="$cand"; break; fi
+done
+if [ -z "$KEY" ]; then
+    echo "nyshot: nyx-key not found next to $0 or in /usr/local/bin" >&2
+    exit 1
+fi
+
+"$KEY" "$CHORD" || {
+    echo "nyshot: capture key ($CHORD) failed to inject" >&2
+    exit 1
+}

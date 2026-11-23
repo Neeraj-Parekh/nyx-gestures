@@ -1,0 +1,8 @@
+{
+  "uuid": "nyx-apiprobe@nyx.local",
+  "name": "nyx apiprobe",
+  "description": "Test-only harness that asserts every GNOME API nyx-gestures calls actually exists. Installed by testrig.sh, never shipped.",
+  "shell-version": ["50"],
+  "url": "file:///nonexistent",
+  "version-name": "0.0.0"
+}

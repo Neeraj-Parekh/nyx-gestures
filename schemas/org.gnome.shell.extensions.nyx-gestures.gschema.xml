@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Settings for the nyx-gestures GNOME Shell extension.
+
+  Only one key, on purpose. A GSettings key exists here rather than a plain
+  constant because it is the only way to change the log level on a running
+  session without logging out, and "the gesture does nothing" is exactly the
+  question a user needs to answer by hand:
+
+      gsettings get    org.gnome.shell.extensions.nyx-gestures level
+      gsettings set    org.gnome.shell.extensions.nyx-gestures level debug
+      tail -f ~/.local/state/nyx-gestures/nyx.log
+
+  At "debug" the log records the axis-lock decision and the raw deltas for each
+  gesture, which is what you need to tell apart "the compositor never delivered
+  this gesture" from "it was delivered and the action declined".
+
+  Levels: debug | info | warn | error | off
+-->
+<schemalist>
+  <schema id="org.gnome.shell.extensions.nyx-gestures"
+          path="/org/gnome/shell/extensions/nyx-gestures/">
+
+    <key name="level" type="s">
+      <default>'info'</default>
+      <summary>Log verbosity</summary>
+      <description>
+        How much nyx-gestures writes to
+        ~/.local/state/nyx-gestures/nyx.log
+
+        debug: everything, including per-event deltas and axis-lock decisions.
+               Very noisy; intended only for diagnosing a gesture that does
+               nothing.
+        info:  lifecycle only - enabled/disabled, and one line per gesture
+               naming the action and whether it completed or declined.
+               This is the default and is quiet enough to leave on.
+        warn:  only things that degraded but still work, plus errors.
+        error: only failures.
+        off:   nothing at all.
+      </description>
+    </key>
+
+  </schema>
+</schemalist>
