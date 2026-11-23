@@ -106,6 +106,11 @@ if (conf) {
     const MEANING = {
         'super+shift+Left': 'tile-left',
         'super+shift+Right': 'tile-right',
+        // super+Left/Right = toggle-tiled-* (resize to half). This is the
+        // recommended binding; super+shift = move-to-side (only moves) is kept
+        // above for configs that still use the old meaning.
+        'super+Left': 'tile-left',
+        'super+Right': 'tile-right',
         'super+Tab': 'overview',
         'alt+F8': 'begin-resize',
         'super+alt+Right': 'workspace-right',

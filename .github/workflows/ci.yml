@@ -1,0 +1,41 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Gesture decision test (map vs daemon config)
+        run: node dev/decisiontest.js libinput-gestures.conf
+
+      - name: Python syntax
+        run: python3 -m py_compile daemon/nyx-key.py daemon/nyx-keyd.py
+
+      - name: Shell syntax
+        run: |
+          for f in install.sh build-package.sh build-extension.sh lint.sh \
+                   testrig.sh nyx-gestures-setup lib/nyx-log.sh lib/nyx-preflight.sh; do
+            bash -n "$f"
+          done
+          sh -n lib/nyx-preflight.sh
+
+      - name: Extension JS syntax
+        run: |
+          node --input-type=module --check < extension/extension.js
+          node --input-type=module --check < extension/gesture-map.js
+          node --input-type=module --check < suppressor/extension.js
+
+      - name: Build distributable tarball
+        run: bash build-package.sh /tmp/nyx-dist
+
+      - name: Tarball contains the suppressor (fix must ship)
+        run: |
+          tar tzf /tmp/nyx-dist/nyx-gestures-*.tar.gz | grep -q 'suppressor/extension.js'
+          tar tzf /tmp/nyx-dist/nyx-gestures-*.tar.gz | grep -q 'suppressor/metadata.json'
+          echo "suppressor present in tarball"

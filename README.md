@@ -36,9 +36,13 @@ A pure-GJS handler using `get_gesture_motion_delta` (GNOME 45+ only). Kept for r
 
 See [`install.sh --help`](install.sh). The daemon backend is auto-selected unless `--backend=ext` is forced.
 
-1. Install the daemon: `./install.sh --backend=daemon` (needs root for `/usr/local`).
-2. Install and enable the suppressor extension: copy [`suppressor/`](suppressor/) to `~/.local/share/gnome-shell/extensions/nyx-native-suppress@nyx.local/` and `gnome-extensions enable nyx-native-suppress@nyx.local`.
-3. Log out and back in once so GNOME loads the new extension (GJS caches extension modules per session; an enabled extension's code cannot be swapped live).
+One command installs both parts:
+
+```bash
+./install.sh            # installs daemon + suppressor (needs root for /usr/local)
+```
+
+Then **log out and back in once** so GNOME loads the suppressor (GJS caches extension modules per session; an enabled extension's code cannot be swapped live). `--backend=ext` is a deprecated alias for the same working combo — the old extension-only handler is experimental and is not installed by default.
 
 Diagnose: `./install.sh --doctor` (read-only), `./lib/nyx-preflight.sh`, `./lib/nyx-preflight.sh --json`.
 

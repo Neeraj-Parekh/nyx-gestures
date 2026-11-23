@@ -1,27 +1,26 @@
 #!/bin/bash
 # nyx-gestures installer - works on any GNOME/Wayland machine.
 #
-#   ./install.sh                 auto-detect and install the default backend
-#   ./install.sh --backend=daemon force the libei daemon backend
-#   ./install.sh --backend=ext    force the GNOME Shell extension backend
+#   ./install.sh                 install the recommended daemon + suppressor setup
+#   ./install.sh --backend=daemon same (kept for compatibility)
+#   ./install.sh --backend=ext    deprecated alias: installs daemon + suppressor
 #   ./install.sh --uninstall      remove everything this script installed
 #   ./install.sh --status         report what is installed and what is running
 #   ./install.sh --doctor         diagnose "my gesture does nothing", read-only
 #
-# Backends:
-#   daemon  libinput-gestures + a libei key injector. Works on any GNOME/Wayland
-#           version and any touchpad, including ones whose native gestures we
-#           cannot disable. Costs ~32 MB RAM across 2 processes.
-#   ext     a GNOME Shell extension. 0 extra processes, gestures handled by the
-#           compositor. Requires Clutter's get_gesture_motion_delta, which
-#           arrived in Clutter 12 / mutter 12 (GNOME 45) - checked live, not
-#           guessed from the version string. Requires a shell restart.
+# The WORKING setup is two parts:
+#   daemon      libinput-gestures + a libei key injector performs every gesture
+#               action (tile, workspace, fullscreen, desktop, screenshots).
+#               Works on any GNOME/Wayland version, any touchpad, ~32 MB / 2 procs.
+#   suppressor  a tiny GNOME Shell extension (nyx-native-suppress@nyx.local)
+#               disables ONLY GNOME's own native swipe trackers so they do not
+#               double-fire alongside the daemon. No gesture handling, no key
+#               injection, no system files patched. Without it, 3F horizontal
+#               also switches workspace and 4F up also shows a workspace preview.
 #
-# Auto-selection prefers the extension when the required API is actually present,
-# and falls back to the daemon otherwise. --backend=ext on a system without the
-# API is refused rather than installed, because every swipe would silently fail.
-#
-# Neither backend patches any system binary.
+# The old extension-only backend (extension/) is experimental and is NOT installed
+# by default; --backend=ext now installs the recommended daemon + suppressor combo
+# with a warning. Neither path patches any system binary.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -29,6 +28,7 @@ LIBDIR=/usr/local/lib/nyx-gestures
 BINDIR=/usr/local/bin
 UNITDIR="${HOME}/.config/systemd/user"
 UUID="nyx-gestures@nyx.local"
+SUPPRESSOR_UUID="nyx-native-suppress@nyx.local"
 
 BACKEND="auto"
 ACTION="install"
@@ -131,8 +131,12 @@ do_doctor() {
     for c in nyx-key nyx-keyd nyshot libinput-gestures nyx-preflight; do
         printf '    %-22s %s\n' "$c" "$(command -v "$c" 2>/dev/null || echo 'not installed')"
     done
-    printf '    %-22s %s\n' "extension enabled" \
-        "$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null | grep -c "$UUID")"
+    printf '    %-22s %s\n' "suppressor enabled" \
+        "$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null | grep -c "$SUPPRESSOR_UUID")"
+    printf '    %-22s %s\n' "extensions globally on" \
+        "$(gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
+            --method org.freedesktop.DBus.Properties.Get org.gnome.Shell.Extensions \
+            UserExtensionsEnabled 2>/dev/null | grep -qo true && echo yes || echo NO)"
     printf '    %-22s %s\n' "gestures in conf" \
         "$(grep -c '^gesture' "$HOME/.config/libinput-gestures.conf" 2>/dev/null || echo 0)"
     say ""
@@ -187,7 +191,10 @@ do_status() {
     say "==> Status"
     say "    libinput-gestures : $(systemctl --user is-active libinput-gestures.service 2>/dev/null || echo 'not installed')"
     say "    nyx-keyd           : $(systemctl --user is-active nyx-keyd.service 2>/dev/null || echo 'not installed')"
-    say "    extension          : $(gnome-extensions info "$UUID" 2>/dev/null | awk '/State:/{print $2}' || echo 'not installed')"
+    say "    suppressor         : $(gnome-extensions info "$SUPPRESSOR_UUID" 2>/dev/null | awk '/State:/{print $2}' || echo 'not installed')"
+    say "    extensions on      : $(gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
+            --method org.freedesktop.DBus.Properties.Get org.gnome.Shell.Extensions \
+            UserExtensionsEnabled 2>/dev/null | grep -qo true && echo yes || echo NO)"
     if [ -f "${HOME}/.config/libinput-gestures.conf" ]; then
         say "    bindings           : $(grep -c '^gesture' "${HOME}/.config/libinput-gestures.conf")"
     fi
@@ -200,12 +207,14 @@ do_uninstall() {
     say "==> Disabling services"
     systemctl --user disable --now libinput-gestures.service 2>/dev/null || true
     systemctl --user disable --now nyx-keyd.service 2>/dev/null || true
-    say "==> Disabling extension"
+    say "==> Disabling extensions"
     gnome-extensions disable "$UUID" 2>/dev/null || true
+    gnome-extensions disable "$SUPPRESSOR_UUID" 2>/dev/null || true
     say "==> Removing files"
     rm -f "$BINDIR/nyx-key" "$BINDIR/nyx-keyd" "$BINDIR/nyshot" \
           "$BINDIR/nyx-gestures-setup" "$BINDIR/nyx-key-uninstall"
-    rm -rf "$LIBDIR" "${HOME}/.local/share/gnome-shell/extensions/$UUID"
+    rm -rf "$LIBDIR" "${HOME}/.local/share/gnome-shell/extensions/$UUID" \
+           "${HOME}/.local/share/gnome-shell/extensions/$SUPPRESSOR_UUID"
     rm -f "${UNITDIR}/nyx-keyd.service"
     systemctl --user daemon-reload 2>/dev/null || true
     say "Done. Your gesture config was left in place:"
@@ -332,68 +341,40 @@ install_daemon() {
     "$BINDIR/nyx-gestures-setup" || warn "keybinding setup reported a problem"
 }
 
-install_ext() {
-    say "==> Installing the GNOME Shell extension backend"
-    DEST="${HOME}/.local/share/gnome-shell/extensions/$UUID"
+install_suppressor() {
+    say "==> Installing the native-swipe suppressor extension"
+    DEST="${HOME}/.local/share/gnome-shell/extensions/$SUPPRESSOR_UUID"
     mkdir -p "$DEST"
-    # gesture-map.js is a runtime import of extension.js, not an optional extra:
-    # omitting it makes the extension fail to load at all.
-    cp "$HERE/extension/metadata.json" "$HERE/extension/extension.js" \
-       "$HERE/extension/gesture-map.js" "$DEST/"
+    cp "$HERE/suppressor/metadata.json" "$HERE/suppressor/extension.js" "$DEST/"
 
-    # The shipped metadata declares only ["50"] because that is the ONLY version
-    # this has been hardware-verified on. GNOME refuses to load an extension
-    # whose shell-version does not include the running shell, so leaving it at 50
-    # would make the installer say "supported" on a 46 machine and then fail to
-    # load. Since the API probe above already proved the required Clutter methods
-    # are present, widen the INSTALLED copy to this machine's version. The
-    # shipped file stays honest about what was actually tested.
+    # Shipped metadata declares ["50"] (the hardware-verified version). Widen
+    # the INSTALLED copy to this machine's major version if different, so GNOME
+    # will load it; the shipped file stays honest about what was tested.
     if [ -n "${GNOME_VER:-}" ] && [ "$GNOME_VER" != 50 ]; then
         if grep -q '"50"' "$DEST/metadata.json" 2>/dev/null; then
             sed -i "s/\"shell-version\": *\[\"50\"\]/\"shell-version\": [\"$GNOME_VER\"]/" \
                 "$DEST/metadata.json"
-            say "    adapted shell-version to $GNOME_VER (API probe passed on this system)"
+            say "    adapted shell-version to $GNOME_VER"
         fi
     fi
 
-    # GSettings schema, installed per-user so no root is needed and the system
-    # schema directory stays untouched. Without it the extension still loads but
-    # every log-level lookup fails, which would silently leave the user with no
-    # way to change verbosity.
-    if [ -d "$HERE/schemas" ]; then
-        SCHEMA_SRC="$HERE/schemas/org.gnome.shell.extensions.nyx-gestures.gschema.xml"
-        if [ -f "$SCHEMA_SRC" ]; then
-            mkdir -p "$HOME/.local/share/glib-2.0/schemas"
-            install -m 644 "$SCHEMA_SRC" \
-                "$HOME/.local/share/glib-2.0/schemas/"
-            if command -v glib-compile-schemas >/dev/null 2>&1; then
-                glib-compile-schemas "$HOME/.local/share/glib-2.0/schemas" 2>/dev/null \
-                    && say "    installed GSettings schema (per-user, no root needed)" \
-                    || warn "schema compile failed; the extension will fall back to \$NYX_LOG"
-            else
-                warn "glib-compile-schemas not found; log level stays at its default"
-            fi
-        fi
+    # GNOME disables ALL extensions after a shell failure. If that happened,
+    # gnome-extensions enable will silently refuse; re-enable them first.
+    if ! gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
+            --method org.freedesktop.DBus.Properties.Get org.gnome.Shell.Extensions \
+            UserExtensionsEnabled 2>/dev/null | grep -q true; then
+        gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \
+            --method org.freedesktop.DBus.Properties.Set org.gnome.Shell.Extensions \
+            UserExtensionsEnabled '<true>' >/dev/null 2>&1 \
+            && say "    re-enabled GNOME extensions (were globally disabled)"
     fi
 
-    # The logger and preflight are useful to the user after install, so ship
-    # them into the same private libdir the daemon uses.
-    LOGDIR="$LIBDIR"
-    mkdir -p "$LOGDIR" 2>/dev/null || true
-    if [ -w "$LOGDIR" ] || [ "$(id -u)" -eq 0 ]; then
-        install -m 644 "$HERE/lib/nyx-log.sh" "$LOGDIR/nyx-log.sh" 2>/dev/null || true
-        install -m 755 "$HERE/lib/nyx-preflight.sh" "$LOGDIR/nyx-preflight.sh" 2>/dev/null || true
-        ln -sf "$LOGDIR/nyx-preflight.sh" "$BINDIR/nyx-preflight" 2>/dev/null || true
-    else
-        warn "cannot write $LOGDIR without root; skipping the nyx-preflight helper"
-    fi
-
-    gnome-extensions enable "$UUID" 2>/dev/null \
-        && say "    enabled $UUID" \
-        || warn "could not enable (log out and in, then: gnome-extensions enable $UUID)"
+    gnome-extensions enable "$SUPPRESSOR_UUID" 2>/dev/null \
+        && say "    enabled $SUPPRESSOR_UUID" \
+        || warn "could not enable (log out/in, then: gnome-extensions enable $SUPPRESSOR_UUID)"
     say ""
-    say "IMPORTANT: log out and back in so GNOME Shell loads it."
-    say "No system files are modified by this backend."
+    say "IMPORTANT: log out and back in so GNOME Shell loads the suppressor."
+    say "No system files are modified by this extension."
 }
 
 case "$ACTION" in
@@ -401,7 +382,12 @@ case "$ACTION" in
     doctor)    do_doctor ;;
     uninstall) do_uninstall ;;
     install)   detect
-               if [ "$BACKEND" = ext ]; then install_ext; else install_daemon; fi
+               if [ "$BACKEND" = ext ]; then
+                   warn "--backend=ext is deprecated (the extension-only handler is experimental)."
+                   warn "Installing the recommended daemon + suppressor setup instead."
+               fi
+               install_daemon
+               install_suppressor
                say ""
-               say "Done. Verify with:  $0 --status" ;;
+               say "Done. Log out and back in once, then verify with:  $0 --status" ;;
 esac

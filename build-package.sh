@@ -43,9 +43,15 @@ for f in nyx-interp nyx-key nyx-keyd nyx-key.py nyx-keyd.py nyshot; do
     copyx "daemon/$f"
 done
 
-# extension backend
+# extension backend (experimental, reference only)
 for f in metadata.json extension.js gesture-map.js LICENSE; do
     copy "extension/$f"
+done
+
+# native-swipe suppressor (REQUIRED for the daemon backend to work correctly:
+# without it GNOME's own swipe trackers double-fire alongside the daemon)
+for f in metadata.json extension.js; do
+    copy "suppressor/$f"
 done
 
 # systemd units and the GSettings schema
@@ -64,6 +70,12 @@ echo "--- package contents"
 # exercise exists to remove.
 if [ ! -f "$D/lib/nyx-preflight.sh" ]; then
     echo "ERROR: lib/nyx-preflight.sh missing from the package" >&2
+    exit 1
+fi
+# The suppressor is mandatory: a tarball without it would reintroduce the
+# double-action bug (native workspace switch + tile, preview + fullscreen).
+if [ ! -f "$D/suppressor/extension.js" ] || [ ! -f "$D/suppressor/metadata.json" ]; then
+    echo "ERROR: suppressor/ missing from the package" >&2
     exit 1
 fi
 

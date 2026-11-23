@@ -1,7 +1,7 @@
 {
   "uuid": "nyx-native-suppress@nyx.local",
   "name": "Nyx Native Gesture Suppressor",
-  "description": "Disables ONLY GNOME's native desktop workspace swipe tracker so it cannot conflict with the nyx-gestures daemon backend (which injects the real actions via libei). Handles no gestures itself. Restores the native tracker on disable. Companion to the nyx-gestures daemon backend; fixes 3-finger horizontal swipe switching workspace instead of tiling.",
+  "description": "Companion to the nyx-gestures daemon backend: disables BOTH GNOME native swipe trackers (workspaceAnimation horizontal + overview vertical) so they cannot double-fire alongside the daemon's injected actions. Without it, 3-finger horizontal also switches workspace and 4-finger up also shows a workspace preview. Handles no gestures itself, injects no keys, and restores both trackers on disable.",
   "shell-version": ["50"],
   "version-name": "1.0.0",
   "url": "https://example.invalid/nyx-gestures"
