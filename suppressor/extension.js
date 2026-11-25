@@ -13,7 +13,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 export default class NyxNativeSuppress {
     enable() {
-        if (this._trackers) return;
+        if (this._trackers && this._trackers.length) return;
         this._trackers = [];
         const cands = [];
         try { const t = Main.wm?._workspaceAnimation?._swipeTracker; if (t) cands.push(t); } catch (e) {}
