@@ -32,6 +32,19 @@ A pure-GJS handler using `get_gesture_motion_delta` (GNOME 45+ only). Kept for r
 | 4-finger pinch out | screenshot picker | `nyshot gui` |
 | 4-finger pinch in | show desktop | `alt+F12` |
 
+## Direct keybindings (no gesture needed)
+
+| Chord | Action |
+|---|---|
+| `super+shift+Left` / `super+shift+Right` | tile focused window to left / right half |
+| `super+shift+Up` | move focused window to the **next** workspace (ahead) |
+| `super+shift+Down` | move focused window to the **previous** workspace (back) |
+
+Note: GNOME names its actions by vertical position, so "move-to-workspace-down"
+is the *higher-index / ahead* workspace; hence the deliberate inversion between
+the Up/Down chords and the gsettings action names. Top/bottom-half snapping is
+left unbound so these chords have a single owner.
+
 ## Install
 
 See [`install.sh --help`](install.sh). `./install.sh` installs both parts (daemon + suppressor); `--backend=daemon` is the same, and `--backend=ext` is a deprecated alias with a warning.
