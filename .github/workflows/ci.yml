@@ -30,6 +30,14 @@ jobs:
           node --input-type=module --check < extension/extension.js
           node --input-type=module --check < extension/gesture-map.js
           node --input-type=module --check < suppressor/extension.js
+          node --input-type=module --check < dev/suppressassert.js
+
+      - name: Suppressor re-enable guard (empty-array bug regression)
+        run: |
+          # The full regression runs in the headless shell rig (testrig.sh).
+          # CI cannot boot GNOME, so at least assert the fixed guard is present.
+          grep -q 'this._trackers && this._trackers.length' suppressor/extension.js
+          echo "re-enable guard present"
 
       - name: Build distributable tarball
         run: bash build-package.sh /tmp/nyx-dist

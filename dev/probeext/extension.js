@@ -40,6 +40,14 @@ export default class NyxApiProbeExtension {
                 .catch(e => console.log(`LOG_TEST FAILED to run: ${e.message}`));
             return GLib.SOURCE_REMOVE;
         });
+        // Suppressor regression: needs its own instance in the shell. Importing
+        // the class module and calling new() directly exercises enable() twice.
+        GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 6, () => {
+            import('./suppressassert.js')
+                .then(m => m.run())
+                .catch(e => console.log(`SUPPRESS_ASSERT FAILED to run: ${e.message}`));
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     disable() {}

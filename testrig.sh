@@ -50,7 +50,11 @@ PROBE_UUID="nyx-apiprobe@nyx.local"
 PROBEDIR="$HOME/.local/share/gnome-shell/extensions/$PROBE_UUID"
 mkdir -p "$PROBEDIR"
 cp "$SRC/dev/probeext/metadata.json" "$SRC/dev/probeext/extension.js" "$PROBEDIR/"
-cp "$SRC/dev/apiprobe.js" "$SRC/dev/selftest.js" "$SRC/dev/statetest.js" "$SRC/dev/logtest.js" "$PROBEDIR/"
+cp "$SRC/dev/apiprobe.js" "$SRC/dev/selftest.js" "$SRC/dev/statetest.js" "$SRC/dev/logtest.js" "$SRC/dev/suppressassert.js" "$PROBEDIR/"
+# The suppressor under test, at the import path suppressassert.js expects.
+SUPPRESSDIR="$HOME/.local/share/gnome-shell/extensions/nyx-native-suppress@nyx.local"
+mkdir -p "$SUPPRESSDIR"
+cp "$SRC/suppressor/extension.js" "$SUPPRESSDIR/extension.js"
 
 # The ONLY write goes to the isolated profile.
 DCONF_PROFILE="$PROFILE" gsettings set org.gnome.shell enabled-extensions \
@@ -113,5 +117,14 @@ echo "--- logger"
 grep -E "LOG_TEST (PASSED|FAILED)" "$RIGLOG" 2>/dev/null | sed 's/^.*LOG_TEST/  LOG_TEST/' || true
 grep -qE "LOG_TEST PASSED" "$RIGLOG" 2>/dev/null || {
     echo "--- FAIL: LOG_TEST did not report success" >&2
+    exit 1
+}
+
+# Suppressor regression: re-enable must re-disable both native trackers.
+# The empty-array bug passed every other gate, so this needs its own gate.
+echo "--- suppressor re-enable regression"
+grep -E "SUPPRESS_ASSERT" "$RIGLOG" 2>/dev/null | sed 's/^.*SUPPRESS_ASSERT/  SUPPRESS_ASSERT/' || true
+grep -qE "SUPPRESS_ASSERT RESULT PASS" "$RIGLOG" 2>/dev/null || {
+    echo "--- FAIL: SUPPRESS_ASSERT did not report success" >&2
     exit 1
 }
