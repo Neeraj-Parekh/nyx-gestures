@@ -23,6 +23,13 @@ import time
 SOCK = os.path.expanduser("~/.cache/nyx-gestures/key.sock")
 TOKEN_FILE = os.path.expanduser("~/.cache/nyx-gestures/libei.token")
 RECONNECT_SECS = 5
+# Self-heal a stale libei/GDBus connection (e.g. after a gnome-shell restart).
+# A fresh process is the only reliable cure on this build: libei.portal caches
+# GLib's shared session-bus connection, which goes stale after a compositor
+# restart. Exit so systemd Restart=always restarts us with a fresh connection.
+# Each attempt can block up to 30s (negotiate timeout), so 4 fails is ~2 min
+# between restarts even if GNOME is genuinely unavailable (no tight loop).
+MAX_CONNECT_FAILS = 4
 
 from evdev import ecodes  # noqa: E402
 
@@ -220,6 +227,21 @@ def press(device, codes):
                 pass
 
 
+def maybe_self_heal(fails):
+    """Exit for a systemd restart after repeated connection failures.
+
+    Called from every path that drops a session (open failure, emulation
+    failure, revoked emulation on inject), so a session that never comes up
+    heals instead of looping forever. The MAX_CONNECT_FAILS threshold itself
+    rate-limits restarts (4 * up-to-30s negotiate ~= 2 min between restarts).
+    Never called from the healthy injection path.
+    """
+    if fails >= MAX_CONNECT_FAILS:
+        print("self-heal: stale portal connection; exiting for systemd restart",
+              flush=True)
+        sys.exit(1)  # systemd Restart=always gives us a fresh GDBus connection
+
+
 def main():
     os.makedirs(os.path.dirname(SOCK), exist_ok=True)
     if os.path.exists(SOCK):
@@ -233,21 +255,30 @@ def main():
 
     held = None
     last_send = 0.0
+    connect_fails = 0
     while True:
         if held is None:
             try:
                 held = list(open_device())
+                connect_fails = 0
             except Exception as e:
-                print(f"portal not ready ({e}); retry in {RECONNECT_SECS}s",
-                      flush=True)
+                connect_fails += 1
+                print(f"portal not ready ({e}); retry in {RECONNECT_SECS}s "
+                      f"({connect_fails}/{MAX_CONNECT_FAILS})", flush=True)
+                maybe_self_heal(connect_fails)
                 time.sleep(RECONNECT_SECS)
                 continue
             try:
                 start_emulation(held[2], held[1])
+                connect_fails = 0
                 print("emulation active", flush=True)
             except Exception as e:
-                print(f"emulation failed ({e})", flush=True)
+                connect_fails += 1
+                print(f"emulation failed ({e}) "
+                      f"({connect_fails}/{MAX_CONNECT_FAILS})", flush=True)
+                maybe_self_heal(connect_fails)
                 held = None
+                time.sleep(RECONNECT_SECS)
                 continue
 
         _session, ctx, device = held
@@ -296,15 +327,22 @@ def main():
                           " - a modifier may be stuck (bare Super opens the"
                           " overview)", flush=True)
                 last_send = time.time()
+                connect_fails = 0
                 print(f"sent {data}", flush=True)
                 reply = b"OK"
             except NotEmulating as e:
-                print(f"INJECT FAILED ({e}); rebuilding session", flush=True)
+                connect_fails += 1
+                print(f"INJECT FAILED ({e}); rebuilding session "
+                      f"({connect_fails}/{MAX_CONNECT_FAILS})", flush=True)
+                maybe_self_heal(connect_fails)
                 held = None
                 reply = b"ERR"
                 time.sleep(0.2)
             except Exception as e:
-                print(f"INJECT FAILED ({e}); rebuilding session", flush=True)
+                connect_fails += 1
+                print(f"INJECT FAILED ({e}); rebuilding session "
+                      f"({connect_fails}/{MAX_CONNECT_FAILS})", flush=True)
+                maybe_self_heal(connect_fails)
                 held = None
                 reply = b"ERR"
                 time.sleep(0.2)
