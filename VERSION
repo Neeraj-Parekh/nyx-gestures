@@ -1,57 +1,49 @@
-nyx-gestures 2.0.0
+nyx-gestures 2.1.0
 
-Touchpad gestures for GNOME, two interchangeable backends, one installer.
-See README.md.
+Touchpad gestures for GNOME Wayland.
 
-    daemon  libinput-gestures + a libei key injector. 2 processes, ~32 MB.
-            Works on any GNOME version and any touchpad, including X11.
-    ext     GNOME Shell extension. 0 extra processes, no key injection.
-            Requires the compositor to expose get_gesture_motion_delta.
+Recommended setup (one command): ./install.sh
+  - daemon: libinput-gestures + nyx-keyd (libei key injection), 2 procs, ~32 MB.
+    Performs every gesture action. Works on any GNOME/Wayland version and any
+    touchpad, including X11.
+  - suppressor: GNOME Shell extension (nyx-native-suppress@nyx.local). Disables
+    ONLY GNOME's native swipe trackers so they cannot double-fire with the
+    daemon. Handles no gestures, injects no keys, patches no system files.
 
-Neither backend patches a system binary. There are no apt hooks.
+The old extension-only handler in extension/ (get_gesture_motion_delta based,
+GNOME 45+) is experimental reference material and is NOT installed by default.
+--backend=ext is a deprecated alias that installs the recommended daemon+suppressor
+combo with a warning.
 
-Platform selection
-------------------
-The installer probes the installed typelibs for get_gesture_motion_delta and
-refuses the extension backend when it is absent, instead of shipping an
-extension whose every swipe would silently fail. Measured:
+Neither path patches a system binary. There are no apt hooks.
 
-    Ubuntu 26.04 / GNOME 50.1 / mutter 18   present  -> extension offered
-    Ubuntu 22.04 / GNOME 42.9 / mutter 10   absent   -> extension refused
-
-Note that the function is *declared* in mutter 10's C header but missing from
-Clutter-10.typelib, so it is not reachable from GJS. The capability probe reads
-the typelib, which is the same thing JS would see, rather than the C header.
+Gesture map (daemon)
+  3F swipe left/right  tile window to left/right half (super+Left/Right)
+  3F swipe up          app switcher (super+Tab)
+  3F swipe down        keyboard resize (alt+F8; arrows + Esc)
+  4F swipe left/right  switch workspace (super+alt+Right/Left)
+  4F swipe up          fullscreen (alt+F9)
+  4F swipe down        show desktop (alt+F12)
+  3F pinch out/in      screenshot (file+clipboard) / close window
+  4F pinch out/in      screenshot picker / show desktop
 
 Requirements
-------------
-daemon   python3, python-evdev, python-libei (installed into a private venv),
-         xdotool as the X11 fallback. Root, for /usr/local.
-ext      GNOME 45+. No root: the GSettings schema installs per-user.
-both     a touchpad with at least 4 slots for the 4-finger gestures.
+  daemon   python3, python-evdev, python-libei (private venv). Root for /usr/local.
+  suppressor  GNOME 45+. No root: extension installs per-user.
+  both     a touchpad with at least 4 slots for 4-finger gestures.
 
 Logging
--------
-Both halves write ~/.local/state/nyx-gestures/nyx.log at levels, rotated at
-256 KiB. Change the level on a running session with:
-
+  ~/.local/state/nyx-gestures/nyx.log (rotated 256 KiB). Level via:
     gsettings set org.gnome.shell.extensions.nyx-gestures level debug
-
-Each gesture logs one line naming the action and whether it completed or was
-declined, which distinguishes "the compositor never sent this gesture" from
-"the action could not run".
+  nyx-keyd logs to the user journal: journalctl --user -u nyx-keyd
+  Self-heal: after 4 consecutive session failures the injector exits so
+  systemd restarts it with a fresh libei/GDBus connection.
 
 Diagnosis
----------
-    ./install.sh --doctor     read-only; safe on someone else's machine
-    ./lib/nyx-preflight.sh    platform capability report
-    ./lib/nyx-preflight.sh --json
+  ./install.sh --doctor       read-only, safe on any machine
+  ./lib/nyx-preflight.sh      platform capability report
 
 Tests (working tree only, not shipped)
---------------------------------------
-    node dev/decisiontest.js CONFIG    28 checks, plain node, no GNOME needed
-    ./testrig.sh                       API + state machine + logger, headless
-    ./build-extension.sh               lints, gates on the decision test
-    ./dev/gesture-directions.sh        raw direction/finger/scale via a grabbed
-                                       virtual touchpad, never reaching the
-                                       live session
+  node dev/decisiontest.js libinput-gestures.conf   28 checks, no GNOME needed
+  ./testrig.sh                                      headless GNOME shell gates
+    (includes SUPPRESS_ASSERT: re-enable regression, fixed in 2.1.0)

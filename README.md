@@ -34,7 +34,7 @@ A pure-GJS handler using `get_gesture_motion_delta` (GNOME 45+ only). Kept for r
 
 ## Install
 
-See [`install.sh --help`](install.sh). The daemon backend is auto-selected unless `--backend=ext` is forced.
+See [`install.sh --help`](install.sh). `./install.sh` installs both parts (daemon + suppressor); `--backend=daemon` is the same, and `--backend=ext` is a deprecated alias with a warning.
 
 One command installs both parts:
 
