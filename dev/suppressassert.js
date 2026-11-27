@@ -8,6 +8,7 @@
  * SELF-CONTAINED: uses fake tracker objects injected into Main so the result
  * does not depend on whatever the rig's other extension does to the real
  * trackers (its notify hooks would otherwise fight the baseline). */
+import Gio from 'gi://Gio';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import NyxNativeSuppress from '../nyx-native-suppress@nyx.local/extension.js';
 
@@ -47,6 +48,13 @@ export function run() {
 
         s.enable();
         ck('enable disables both', both(wm, ov, false));
+
+        // Keybindings shipped by the extension (isolated dconf profile here).
+        const settings = new Gio.Settings({schema_id: 'org.gnome.desktop.wm.keybindings'});
+        ck('Up -> move-to-workspace-left', settings.get_strv('move-to-workspace-left').join(',') === '<Super><Shift>Up');
+        ck('Down -> move-to-workspace-right', settings.get_strv('move-to-workspace-right').join(',') === '<Super><Shift>Down');
+        ck('vertical variants cleared', settings.get_strv('move-to-workspace-up').length === 0
+            && settings.get_strv('move-to-workspace-down').length === 0);
 
         wm.enabled = true;  // simulate the shell re-enabling (workspaceAnimation.js:356,476)
         ov.enabled = true;

@@ -37,8 +37,8 @@ A pure-GJS handler using `get_gesture_motion_delta` (GNOME 45+ only). Kept for r
 | Chord | Action |
 |---|---|
 | `super+shift+Left` / `super+shift+Right` | tile focused window to left / right half |
-| `super+shift+Up` | move focused window to the **next** workspace (ahead) |
-| `super+shift+Down` | move focused window to the **previous** workspace (back) |
+| `super+shift+Up` | move focused window to the **previous** workspace (back) |
+| `super+shift+Down` | move focused window to the **next** workspace (ahead) |
 
 GNOME 50 note: the bindings use the HORIZONTAL actions (`move-to-workspace-right`
 / `-left`) even though the chords are Up/Down. Its `_showWorkspaceSwitcher` handler
@@ -46,6 +46,12 @@ silently rejects vertical UP/DOWN moves when dynamic workspaces use a horizontal
 (column) layout (`layout_rows === -1`), so binding to `-up`/`-down` made the chord
 do nothing. Right = higher-index/ahead, Left = lower-index/back. Top/bottom-half
 snapping stays unbound so these chords have a single owner.
+
+These bindings are applied by the **suppressor extension itself** (in `enable()`,
+via `Gio.Settings`) and restored on `disable()`, so they ship with the extension
+and replicate on any device — no separate setup-script run required. The setup
+script sets the same values as a fallback for daemon-only installs; keep the two
+in sync.
 
 ## Install
 

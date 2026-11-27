@@ -49,17 +49,18 @@ set_binding $WM move-to-side-w "['<Super><Shift>Left']"   # left half
 set_binding $WM move-to-side-e "['<Super><Shift>Right']"  # right half
 
 echo "==> move focused window to another workspace"
-# User mapping: Up = ahead (next workspace, higher index); Down = back
-# (previous, lower index).
+# User mapping (FINAL, 2026-11-27): Up = back (previous, lower index);
+# Down = ahead (next, higher index). This matches the suppressor extension's
+# BINDINGS table - keep the two in sync.
 # IMPORTANT (GNOME 50): use the HORIZONTAL actions (left/right), NOT
 # move-to-workspace-up/down. windowManager.js:_showWorkspaceSwitcher rejects
 # UP/DOWN moves when the dynamic-workspace layout is horizontal (columns):
 #   if (layout_rows === -1 && direction !== UP && direction !== DOWN) return;
 # That silently dropped the chord even though `switch` with the same chord worked.
 # right = higher index (ahead), left = lower index (back). Verified live:
-# super+shift+Up moved window+active workspace 0->1, Down moved 1->0.
-set_binding $WM move-to-workspace-right "['<Super><Shift>Up']"    # ahead/next
-set_binding $WM move-to-workspace-left  "['<Super><Shift>Down']"  # back/previous
+# super+shift+Down moved window+active workspace 0->1, Up moved 1->0.
+set_binding $WM move-to-workspace-right "['<Super><Shift>Down']"  # ahead/next
+set_binding $WM move-to-workspace-left  "['<Super><Shift>Up']"    # back/previous
 # Clear the vertical variants so no stale binding intercepts the chord.
 set_binding $WM move-to-workspace-down "[]"
 set_binding $WM move-to-workspace-up   "[]"
