@@ -40,10 +40,12 @@ A pure-GJS handler using `get_gesture_motion_delta` (GNOME 45+ only). Kept for r
 | `super+shift+Up` | move focused window to the **next** workspace (ahead) |
 | `super+shift+Down` | move focused window to the **previous** workspace (back) |
 
-Note: GNOME names its actions by vertical position, so "move-to-workspace-down"
-is the *higher-index / ahead* workspace; hence the deliberate inversion between
-the Up/Down chords and the gsettings action names. Top/bottom-half snapping is
-left unbound so these chords have a single owner.
+GNOME 50 note: the bindings use the HORIZONTAL actions (`move-to-workspace-right`
+/ `-left`) even though the chords are Up/Down. Its `_showWorkspaceSwitcher` handler
+silently rejects vertical UP/DOWN moves when dynamic workspaces use a horizontal
+(column) layout (`layout_rows === -1`), so binding to `-up`/`-down` made the chord
+do nothing. Right = higher-index/ahead, Left = lower-index/back. Top/bottom-half
+snapping stays unbound so these chords have a single owner.
 
 ## Install
 
