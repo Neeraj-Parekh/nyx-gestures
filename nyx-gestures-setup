@@ -34,7 +34,9 @@ echo "==> GNOME window management bindings"
 set_binding $WM close "['<Alt>F4']"
 set_binding $WM begin-resize "['<Alt>F8']"
 set_binding $WM toggle-fullscreen "['<Alt>F9']"
-# alt+F10 is GNOME's toggle-maximized, so move-to-workspace-left uses F15.
+# alt+F10 is GNOME's toggle-maximized, so the alt chords here use F7/F11.
+# The super+shift chords are added in the workspace-move block below; keep the
+# alt chords in the SAME array so setting one does not erase the other.
 set_binding $WM move-to-workspace-left "['<Alt><Shift>F7']"
 set_binding $WM move-to-workspace-right "['<Alt>F11']"
 set_binding $WM show-desktop "['<Alt>F12']"
@@ -59,8 +61,10 @@ echo "==> move focused window to another workspace"
 # That silently dropped the chord even though `switch` with the same chord worked.
 # right = higher index (ahead), left = lower index (back). Verified live:
 # super+shift+Down moved window+active workspace 0->1, Up moved 1->0.
-set_binding $WM move-to-workspace-right "['<Super><Shift>Down']"  # ahead/next
-set_binding $WM move-to-workspace-left  "['<Super><Shift>Up']"    # back/previous
+# Keep the alt chords from above in the same array - a second gsettings set on
+# the same key replaces the whole array, so the old chords must be repeated.
+set_binding $WM move-to-workspace-right "['<Super><Shift>Down', '<Alt>F11']"        # ahead/next
+set_binding $WM move-to-workspace-left  "['<Super><Shift>Up', '<Alt><Shift>F7']"    # back/previous
 # Clear the vertical variants so no stale binding intercepts the chord.
 set_binding $WM move-to-workspace-down "[]"
 set_binding $WM move-to-workspace-up   "[]"

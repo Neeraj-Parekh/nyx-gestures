@@ -51,8 +51,10 @@ export function run() {
 
         // Keybindings shipped by the extension (isolated dconf profile here).
         const settings = new Gio.Settings({schema_id: 'org.gnome.desktop.wm.keybindings'});
-        ck('Up -> move-to-workspace-left', settings.get_strv('move-to-workspace-left').join(',') === '<Super><Shift>Up');
-        ck('Down -> move-to-workspace-right', settings.get_strv('move-to-workspace-right').join(',') === '<Super><Shift>Down');
+        ck('Up -> move-to-workspace-left', settings.get_strv('move-to-workspace-left').includes('<Super><Shift>Up'));
+        ck('Down -> move-to-workspace-right', settings.get_strv('move-to-workspace-right').includes('<Super><Shift>Down'));
+        ck('legacy alt chords preserved', settings.get_strv('move-to-workspace-left').includes('<Alt><Shift>F7')
+            && settings.get_strv('move-to-workspace-right').includes('<Alt>F11'));
         ck('vertical variants cleared', settings.get_strv('move-to-workspace-up').length === 0
             && settings.get_strv('move-to-workspace-down').length === 0);
 

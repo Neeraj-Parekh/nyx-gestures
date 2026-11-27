@@ -24,8 +24,10 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const WM_SCHEMA = 'org.gnome.desktop.wm.keybindings';
 const BINDINGS = {
-    'move-to-workspace-left':  ['<Super><Shift>Up'],    // back/previous
-    'move-to-workspace-right': ['<Super><Shift>Down'],  // ahead/next
+    // Include the legacy alt chords so enabling this extension never erases
+    // bindings the setup script (or the user) assigned to the same key.
+    'move-to-workspace-left':  ['<Super><Shift>Up', '<Alt><Shift>F7'],  // back/previous
+    'move-to-workspace-right': ['<Super><Shift>Down', '<Alt>F11'],      // ahead/next
     // Clear the vertical variants and the old top/bottom-half snap chords so
     // none of them intercept super+shift+Up/Down (single owner per chord).
     'move-to-workspace-up':    [],
